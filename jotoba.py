@@ -84,19 +84,56 @@ def get_pos(word) -> List[str]:
     pos = []
     if word is not None and "senses" in word:
         for sense in word["senses"]:
-            for keys in sense["pos"]:
-                if isinstance(keys, str):
-                    pos.append(keys)
-                else:
-                    for key in keys.keys():
-                        pos.append(key)
-                        # if key == "Verb":
-                        #    if isinstance(keys[key], str):
-                        #        pos.append(keys[key])
-                        #    else:
-                        #        pos.append(keys[key].keys()[0]) # ?????
-        pos = list(dict.fromkeys(pos))
+            for key in sense["pos"]:
+                pos.append(parse_pos(key))
+            if "misc" in sense:
+                pos.append(parse_misc(sense["misc"]))
+        pos = list(dict.fromkeys(pos)) # remove duplicates
     return pos
+
+def parse_pos(pos):
+    if isinstance(pos, str):
+        if pos == "Adverb":
+            return "fukushi"
+        if pos == "AdverbTo":
+            return "taking to"
+        if pos == "Expr":
+            return "expression"
+        if pos == "Suffix":
+            return "suffix"
+        if pos == "Particle":
+            return "particle"
+    else:
+        if "Noun" in pos and pos.get("Noun") == "Normal":
+            return "futsuumeishi"
+        if "Verb" in pos:
+            if pos.get("Verb") == "Ichidan":
+                return "verb ichidan"
+            if pos.get("Verb") == "Godan":
+                return "verb godan"
+            if pos.get("Verb") == "Transitive":
+                return "transitive"
+            if pos.get("Verb") == "Intransitive":
+                return "intransitive"
+            if pos.get("Verb").get("Irregular") == "NounOrAuxSuru":
+                return "suru"
+        if "Adjective" in pos:
+            if pos.get("Adjective") == "I":
+                return "keiyoushi"
+            if pos.get("Adjective") == "Na":
+                return "keiyoudoushi"
+            if pos.get("Adjective") == "No":
+                return "taking no"
+    return "?"
+
+def parse_misc(misc):
+    if misc == "UsuallyWrittenInKana":
+        return "kana"
+    if misc == "OnomatopoeicOrMimeticWord":
+        return "onomatopoeia"
+    if misc == "Colloquialism":
+        return "colloquialism"
+    return "?"
 
 
 def get_katakana(word):
