@@ -1,17 +1,12 @@
-from anki.hooks import addHook
-from anki.notes import NoteId
-from aqt.browser import Browser
 from aqt.editor import Editor
-from typing import List, Sequence
+from typing import List
 
-from .editor import EXPRESSION_FIELD_POS, EXPRESSION_FIELD_NAME, AUDIO_FIELD_POS, JOTOBA_URL, READING_FIELD_POS, MEANING_FIELD_POS, \
-    POS_FIELD_POS, PITCH_FIELD_POS, PITCH_FIELD_NAME, has_fields, READING_FIELD_NAME, POS_FIELD_NAME, \
-    EXAMPLE_FIELD_PREFIX
+from .editor import EXPRESSION_FIELD_POS, AUDIO_FIELD_POS, READING_FIELD_POS, fill_data, has_fields
 from .jotoba import *
-from .utils import format_furigana, log
+from .utils import log
 from aqt.utils import showInfo
 from aqt.qt import *
-from aqt import mw, gui_hooks
+from aqt import gui_hooks
 
 
 # Audio button
@@ -43,7 +38,7 @@ def set_audio_in_editor(audio: str, editor: Editor):
 
 
 def add_audio_btn(buttons: List[str], editor: Editor):
-    buttons += [editor.addButton("", "add_audio", get_audio, "tooltip", "Add Audio")]
+    buttons += [editor.addButton("", "add_audio", get_audio, "Adds Audio from Jotoba", "Add Audio")]
 
 
 # Clear contents
@@ -56,26 +51,31 @@ def clear_contents(editor: Editor):
 
 
 def add_clear_content(buttons: List[str], editor: Editor):
-    buttons += [editor.addButton("", "clear_contents", clear_contents, "tooltip", "Clear all")]
+    buttons += [editor.addButton("", "clear_contents", clear_contents, "Clears all fields", "Clear all")]
 
 
 # Update fields
 def update_fields(editor: Editor):
     all_fields = editor.note.fields
+
+    if not has_fields(editor.note):
+        log("Note does not have the required fields")
+        return
+    
     if all_fields[EXPRESSION_FIELD_POS] == "":
         showInfo("Please enter a word in the Expression field")
         return
-    if all_fields[READING_FIELD_POS] != "":
-        editor.web.eval(f'focusField(1)')
-        editor.web.eval(f'focusField(0)')
+
+    if all_fields[READING_FIELD_POS] == "":
+        fill_data(editor.note, all_fields[EXPRESSION_FIELD_POS], False)
     else:
-        editor.web.eval(f'focusField(0);')
-        editor.web.eval(f'focusField(1);')
-    return
+        fill_data(editor.note, all_fields[EXPRESSION_FIELD_POS], False, all_fields[READING_FIELD_POS])
+
+    editor.loadNote()
 
 
 def add_update_field_btn(buttons: List[str], editor: Editor):
-    buttons += [editor.addButton("", "update_fields", update_fields, "tooltip", "Update data")]
+    buttons += [editor.addButton("", "update_fields", update_fields, "Overwrites all fields with data from Jotoba", "Update data")]
     #s = QShortcut(QKeySequence("Ctrl+Shift+U"), editor.parentWindow, activated=)
 
 
@@ -83,96 +83,3 @@ def init():
     gui_hooks.editor_did_init_buttons.append(add_clear_content)
     gui_hooks.editor_did_init_buttons.append(add_update_field_btn)
     gui_hooks.editor_did_init_buttons.append(add_audio_btn)
-    gui_hooks.browser_menus_did_init.append(setup_browser_menu)  # Bulk add
-
-
-def setup_browser_menu(browser: Browser):
-    """ Add pitch menu """
-    a = QAction("Bulk-add Pitch", browser)
-    a.triggered.connect(lambda: on_regenerate(browser, pitch=True))
-    browser.form.menuEdit.addSeparator()
-    browser.form.menuEdit.addAction(a)
-
-    """ Add POS menu """
-    a = QAction("Bulk-add POS", browser)
-    a.triggered.connect(lambda: on_regenerate(browser, pos=True))
-    browser.form.menuEdit.addAction(a)
-
-    """ Add Sentence menu """
-    a = QAction("Bulk-add Sentences", browser)
-    a.triggered.connect(lambda: on_regenerate(browser, sentences=True))
-    browser.form.menuEdit.addAction(a)
-
-    """ Add All menu """
-    a = QAction("Bulk-add All", browser)
-    a.triggered.connect(lambda: on_regenerate(browser, pitch=True, pos=True, sentences=True))
-    browser.form.menuEdit.addAction(a)
-
-
-def on_regenerate(browser: Browser, pitch=False, pos=False, sentences=False):
-    bulk_add(browser.selectedNotes(), pitch, pos, sentences)
-
-
-def bulk_add(nids: Sequence[NoteId], pitch=False, pos=False, sentences=False):
-    mw.checkpoint("Bulk-add data")
-    mw.progress.start()
-    for nid in nids:
-        note = mw.col.get_note(nid)
-
-        if not has_fields(note):
-            log("skipping: not all fields")
-            continue
-
-        need_change = False
-        need_sentence = False
-
-        if note[PITCH_FIELD_NAME] == "" and pitch:
-            need_change = True
-
-        if note[POS_FIELD_NAME] == "" and pos:
-            need_change = True
-
-        if sentences:
-            for i in range(3):
-                if note[EXAMPLE_FIELD_PREFIX + str(i + 1)] == "":
-                    need_change = True
-                    need_sentence = True
-                    break
-
-        if not need_change:
-            continue
-
-        try:
-            kana = note[READING_FIELD_NAME]
-            word = request_word(note[EXPRESSION_FIELD_NAME], kana)
-        except:
-            log("not found for:" + note[EXPRESSION_FIELD_NAME])
-            continue
-
-        pitch_d = word.pitch
-        if note[PITCH_FIELD_NAME] == "" and pitch and pitch_d != "":
-            note[PITCH_FIELD_NAME] = pitch_d
-
-        pos_d = word.part_of_speech
-        if note[POS_FIELD_NAME] == "" and pos and pos_d != "":
-            note[POS_FIELD_NAME] = "; ".join(pos_d)
-
-        if sentences and need_sentence:
-            try:
-                sentences = request_sentence(note[EXPRESSION_FIELD_NAME])
-                for i, sentence in enumerate(sentences):
-                    if i > 2:
-                        break
-
-                    field_name = EXAMPLE_FIELD_PREFIX + str(i + 1)
-                    if note[field_name] != "":
-                        continue
-
-                    note[field_name] = format_furigana(sentence["furigana"])
-            except:
-                log("didn't find sentences")
-                pass
-
-        note.flush()
-    mw.progress.finish()
-    mw.reset()

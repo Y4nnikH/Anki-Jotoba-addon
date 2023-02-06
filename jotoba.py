@@ -44,6 +44,7 @@ def request_sentence(text):
 
 
 def request_word(text, kana=""):
+    log("Looking up '" + text + "' ...")
     return find_word(json.loads(request(WORDS_API_URL, text).text), text, kana)
 
 
@@ -53,7 +54,7 @@ def request(URL, text):
     return requests.post(URL, data=data.encode('utf-8'), headers=headers)
 
 
-def find_word(res, expr, kana="") -> Optional[Word]:
+def find_word(res, expr:str, kana="") -> Optional[Word]:
     words = res["words"]
     potential_words = []
     kana_words = []
@@ -62,6 +63,8 @@ def find_word(res, expr, kana="") -> Optional[Word]:
 
         if "kanji" in reading:
             if reading["kanji"] == expr and (reading["kana"] == kana or kana == ""):
+                potential_words.append(word)
+            elif len(potential_words) == 0 and reading["kanji"] == expr[:len(reading["kanji"])] and (reading["kana"] == kana[:len(reading["kana"])] or kana == ""): # truncation allows hit for words like "adjectiveNA" -> remove NA
                 potential_words.append(word)
             elif reading["kana"] == expr or reading["kana"] == kana:    # kana word has kanji writing or kanji writing is different from expr
                 kana_words.append(word)
@@ -72,7 +75,11 @@ def find_word(res, expr, kana="") -> Optional[Word]:
     if len(potential_words) == 0:
         potential_words = kana_words
 
-    if len(potential_words) != 1 and kana == "":  # esp. multiple hits for word written in kana possible, but also for kanji words with different readings
+    if len(potential_words) != 1:  # esp. multiple hits for word written in kana possible, but also for kanji words with different readings
+        if len(potential_words) > 1:
+            log("Multiple hits for '" + expr + "'")
+        else:
+            log("No hit for '" + expr + "'")
         return None
 
     word = Word(potential_words[0])
@@ -109,7 +116,7 @@ def parse_pos(pos):
         if "Verb" in pos:
             if pos.get("Verb") == "Ichidan":
                 return "verb ichidan"
-            if pos.get("Verb") == "Godan":
+            if isinstance(pos.get("Verb"), dict) and "Godan" in pos.get("Verb"):
                 return "verb godan"
             if pos.get("Verb") == "Transitive":
                 return "transitive"
@@ -131,8 +138,6 @@ def parse_misc(misc):
         return "kana"
     if misc == "OnomatopoeicOrMimeticWord":
         return "onomatopoeia"
-    if misc == "Colloquialism":
-        return "colloquialism"
     return "?"
 
 
@@ -181,8 +186,6 @@ def get_pitch(word) -> str:
 
 
 def get_pitch_html(word) -> str:
-    log(word)
-
     if word is None or "pitch" not in word:
         return ""
 

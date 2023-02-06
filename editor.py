@@ -31,27 +31,25 @@ NOTES_FIELD_NAME = "Notes"
 NOTES_FIELD_POS = 7
 
 EXAMPLE_FIELD_PREFIX = "Example "
+Example_Field_Offset = 8
 
-ALL_FIELD_NAMES = [EXPRESSION_FIELD_NAME, MEANING_FIELD_NAME, READING_FIELD_NAME, POS_FIELD_NAME, PITCH_FIELD_NAME,
-                   EXAMPLE_FIELD_PREFIX + "1", EXAMPLE_FIELD_PREFIX + "2", EXAMPLE_FIELD_PREFIX + "3"]
-
-ALL_FIELD_POS = {EXPRESSION_FIELD_NAME: EXPRESSION_FIELD_POS,
-                 AUDIO_FIELD_NAME: AUDIO_FIELD_POS,
-                 MEANING_FIELD_NAME: MEANING_FIELD_POS,
-                 READING_FIELD_NAME: READING_FIELD_POS,
-                 POS_FIELD_NAME: POS_FIELD_POS,
-                 PITCH_FIELD_NAME: PITCH_FIELD_POS}
+ALL_FIELDS = {EXPRESSION_FIELD_NAME: EXPRESSION_FIELD_POS,
+              READING_FIELD_NAME: READING_FIELD_POS,
+              PITCH_FIELD_NAME: PITCH_FIELD_POS,
+              MEANING_FIELD_NAME: MEANING_FIELD_POS,
+              POS_FIELD_NAME: POS_FIELD_POS,
+              IMAGE_FIELD_NAME: Image_FIELD_POS,
+              AUDIO_FIELD_NAME: AUDIO_FIELD_POS,
+              NOTES_FIELD_NAME: NOTES_FIELD_POS,
+              EXAMPLE_FIELD_PREFIX + "1": Example_Field_Offset,
+              EXAMPLE_FIELD_PREFIX + "1 Audio": Example_Field_Offset + 1,
+              EXAMPLE_FIELD_PREFIX + "2": Example_Field_Offset + 2,
+              EXAMPLE_FIELD_PREFIX + "2 Audio": Example_Field_Offset + 3,
+              EXAMPLE_FIELD_PREFIX + "3": Example_Field_Offset + 4,
+              EXAMPLE_FIELD_PREFIX + "3 Audio": Example_Field_Offset + 5,}
 
 
 def fill_data(note: Note, expr: str, flag: bool, reading: str = ""):
-    need_update = False
-    for field_i in ALL_FIELD_NAMES:
-        if note[field_i] == "":
-            need_update = True
-            break
-
-    if not need_update:
-        return flag
 
     try:
         word = request_word(expr, reading)
@@ -64,13 +62,13 @@ def fill_data(note: Note, expr: str, flag: bool, reading: str = ""):
 
     note[EXPRESSION_FIELD_NAME] = word.expression
 
-    note[POS_FIELD_NAME] = "; ".join(word.part_of_speech)
-
     note[READING_FIELD_NAME] = word.reading
+
+    note[PITCH_FIELD_NAME] = word.pitch
 
     note[MEANING_FIELD_NAME] = "; ".join(word.glosses[:3])
 
-    note[PITCH_FIELD_NAME] = word.pitch
+    note[POS_FIELD_NAME] = "; ".join(word.part_of_speech)
 
     try:
         sentences = request_sentence(expr)
@@ -91,18 +89,24 @@ def fill_data(note: Note, expr: str, flag: bool, reading: str = ""):
 
 
 # Check whether all fields are available in currently displayed note
-def has_fields(note) -> bool:
-    for f in ALL_FIELD_POS:
+def has_fields(note: Note) -> bool:
+    for f in ALL_FIELDS:
         exists = False
         for pos, name in enumerate(mw.col.models.field_names(note.note_type())):
-            if name == f and pos == ALL_FIELD_POS[f]:
+            if name == f and pos == ALL_FIELDS[f]:
                 exists = True
         if not exists:
             return False
     return True
 
+def fields_empty(note: Note) -> bool:
+    for f in set(ALL_FIELDS.keys()) - {EXPRESSION_FIELD_NAME, READING_FIELD_NAME}:
+        if note[f] != "":
+            return False
+    return True
 
-def add_examples_focus_lost(flag: bool, note: Note, fidx: int):
+
+def fill_on_focus_lost(flag: bool, note: Note, fidx: int):
     if fidx not in [EXPRESSION_FIELD_POS, READING_FIELD_POS]:
         return flag
 
@@ -116,6 +120,10 @@ def add_examples_focus_lost(flag: bool, note: Note, fidx: int):
         log("Expression field is empty")
         return flag
 
+    if not fields_empty(note):
+        log("Not all data fields are empty")
+        return flag
+
     if fidx == EXPRESSION_FIELD_POS:
         return fill_data(note, expr_text, flag)
 
@@ -126,9 +134,5 @@ def add_examples_focus_lost(flag: bool, note: Note, fidx: int):
 
     return fill_data(note, expr_text, flag, reading_text)
 
-
-gui_hooks.editor_did_unfocus_field.append(add_examples_focus_lost)
-
-from .buttons import init as btn_init
-
-btn_init()
+def init():
+    gui_hooks.editor_did_unfocus_field.append(fill_on_focus_lost)
