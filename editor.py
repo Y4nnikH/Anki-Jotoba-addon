@@ -1,4 +1,5 @@
 from anki.notes import Note
+from anki.models import NoteType
 from aqt import mw, gui_hooks
 from aqt.utils import showInfo
 
@@ -49,7 +50,7 @@ ALL_FIELDS = {EXPRESSION_FIELD_NAME: EXPRESSION_FIELD_POS,
               EXAMPLE_FIELD_PREFIX + "3 Audio": Example_Field_Offset + 5,}
 
 
-def fill_data(note: Note, expr: str, flag: bool, reading: str = ""):
+def fill_data(note: Note, expr: str, flag: bool, reading: str = "", overwrite: bool = True):
 
     try:
         word = request_word(expr, reading)
@@ -60,15 +61,20 @@ def fill_data(note: Note, expr: str, flag: bool, reading: str = ""):
     if word is None:  # word not found or ambiguity (no kana reading) -> user will call again after providing reading
         return flag
 
-    note[EXPRESSION_FIELD_NAME] = word.expression
+    if overwrite or note[EXPRESSION_FIELD_NAME] == "":
+        note[EXPRESSION_FIELD_NAME] = word.expression
 
-    note[READING_FIELD_NAME] = word.reading
+    if overwrite or note[READING_FIELD_NAME] == "":
+        note[READING_FIELD_NAME] = word.reading
 
-    note[PITCH_FIELD_NAME] = word.pitch
+    if overwrite or note[PITCH_FIELD_NAME] == "":
+        note[PITCH_FIELD_NAME] = word.pitch
 
-    note[MEANING_FIELD_NAME] = "; ".join(word.glosses[:3])
+    if overwrite or note[MEANING_FIELD_NAME] == "":
+        note[MEANING_FIELD_NAME] = "; ".join(word.glosses[:3])
 
-    note[POS_FIELD_NAME] = "; ".join(word.part_of_speech)
+    if overwrite or note[POS_FIELD_NAME] == "":
+        note[POS_FIELD_NAME] = "; ".join(word.part_of_speech)
 
     try:
         sentences = request_sentence(expr)
@@ -77,10 +83,8 @@ def fill_data(note: Note, expr: str, flag: bool, reading: str = ""):
                 break
 
             field_name = EXAMPLE_FIELD_PREFIX + str(i + 1)
-            if note[field_name] != "":
-                continue
-
-            note[field_name] = format_furigana(sentence["furigana"])
+            if overwrite or note[field_name] == "":
+                note[field_name] = format_furigana(sentence["furigana"])
     except Exception as e:
         log(e)
         pass
@@ -88,11 +92,14 @@ def fill_data(note: Note, expr: str, flag: bool, reading: str = ""):
     return True
 
 
-# Check whether all fields are available in currently displayed note
-def has_fields(note: Note) -> bool:
+# Check whether all fields are available in given notetype
+def has_fields(notetype: NoteType) -> bool:
+    if notetype is None:
+        return False
+    
     for f in ALL_FIELDS:
         exists = False
-        for pos, name in enumerate(mw.col.models.field_names(note.note_type())):
+        for pos, name in enumerate(mw.col.models.field_names(notetype)):
             if name == f and pos == ALL_FIELDS[f]:
                 exists = True
         if not exists:
@@ -110,7 +117,7 @@ def fill_on_focus_lost(flag: bool, note: Note, fidx: int):
     if fidx not in [EXPRESSION_FIELD_POS, READING_FIELD_POS]:
         return flag
 
-    if not has_fields(note):
+    if not has_fields(note.note_type()):
         log("Note does not have the required fields")
         return flag
 
@@ -134,5 +141,16 @@ def fill_on_focus_lost(flag: bool, note: Note, fidx: int):
 
     return fill_data(note, expr_text, flag, reading_text)
 
+current_notetype : NoteType = None
+
+def update_current_notetype(note: Note):
+    log("Note type changed")
+    global current_notetype
+    current_notetype = note.note_type()
+
+def current_notetype_has_fields() -> bool:
+    return has_fields(current_notetype)
+
 def init():
     gui_hooks.editor_did_unfocus_field.append(fill_on_focus_lost)
+    gui_hooks.current_note_type_did_change.append(update_current_notetype)

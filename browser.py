@@ -10,10 +10,6 @@ from aqt.qt import *
 from aqt import mw, gui_hooks
 
 
-def init():
-    gui_hooks.browser_menus_did_init.append(setup_browser_menu)  # Bulk add
-
-
 def setup_browser_menu(browser: Browser):
     """ Add pitch menu """
     a = QAction("Bulk-add Pitch", browser)
@@ -70,7 +66,7 @@ def bulk_add(nids: Sequence[NoteId], pitch=False, pos=False, sentences=False):
     for nid in nids:
         note = mw.col.get_note(nid)
 
-        if not has_fields(note):
+        if not has_fields(note.note_type()):
             log("Skipping: wrong note type")
             continue
 
@@ -138,7 +134,7 @@ def bulk_overwrite_pos(nids: Sequence[NoteId]):
     for nid in nids:
         note = mw.col.get_note(nid)
 
-        if not has_fields(note):
+        if not has_fields(note.note_type()):
             log("Skipping: wrong note type")
             continue
 
@@ -161,3 +157,8 @@ def bulk_overwrite_pos(nids: Sequence[NoteId]):
         note.flush()
     mw.progress.finish()
     mw.reset()
+
+
+
+def init():
+    gui_hooks.browser_menus_did_init.append(setup_browser_menu)  # Bulk add
