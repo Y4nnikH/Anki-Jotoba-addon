@@ -1,7 +1,7 @@
 from aqt.editor import Editor
 from typing import List
 
-from .editor import EXPRESSION_FIELD_POS, AUDIO_FIELD_POS, READING_FIELD_POS, fill_data, has_fields, current_notetype_has_fields
+from .editor import EXPRESSION_FIELD_POS, AUDIO_FIELD_POS, READING_FIELD_POS, fill_data, has_fields
 from .jotoba import *
 from .utils import log
 from aqt.utils import showInfo
@@ -38,9 +38,7 @@ def set_audio_in_editor(audio: str, editor: Editor):
 
 
 def add_audio_btn(buttons: List[str], editor: Editor):
-    if not current_notetype_has_fields:
-        return
-    buttons += [editor.addButton("", "add_audio", get_audio, "Adds Audio from Jotoba", "Add Audio")]
+    buttons += [editor.addButton("", "add_audio", get_audio, "Adds Audio from Jotoba", "Add Audio", "add_audio_btn")]
 
 
 # Clear contents
@@ -53,16 +51,14 @@ def clear_contents(editor: Editor):
 
 
 def add_clear_content(buttons: List[str], editor: Editor):
-    if not current_notetype_has_fields:
-        return
-    buttons += [editor.addButton("", "clear_contents", clear_contents, "Clears all fields", "Clear all")]
+    buttons += [editor.addButton("", "clear_contents", clear_contents, "Clears all fields", "Clear all", "clear_contents_btn")]
 
 
 # Update fields
 def update_fields(editor: Editor):
     all_fields = editor.note.fields
 
-    if not current_notetype_has_fields:
+    if not has_fields(editor.note.note_type()):
         log("Note does not have the required fields")
         return
     
@@ -79,15 +75,13 @@ def update_fields(editor: Editor):
 
 
 def add_update_field_btn(buttons: List[str], editor: Editor):
-    if not current_notetype_has_fields:
-        return
-    buttons += [editor.addButton("", "update_fields", update_fields, "Overwrites all fields with data from Jotoba", "Update data")]
+    buttons += [editor.addButton("", "update_fields", update_fields, "Overwrites all fields with data from Jotoba", "Update data", "update_fields_btn")]
     #s = QShortcut(QKeySequence("Ctrl+Shift+U"), editor.parentWindow, activated=)
 
 def complement_data(editor: Editor):
     all_fields = editor.note.fields
 
-    if not current_notetype_has_fields:
+    if not has_fields(editor.note.note_type()):
         log("Note does not have the required fields")
         return
     
@@ -103,12 +97,22 @@ def complement_data(editor: Editor):
     editor.loadNote()
 
 def add_complement_data_btn(buttons: List[str], editor: Editor):
-    if not current_notetype_has_fields:
-        return
-    buttons += [editor.addButton("", "complement_data", complement_data, "Only fills empty fields with data from Jotoba", "Complement data")]
+    buttons += [editor.addButton("", "complement_data", complement_data, "Only fills empty fields with data from Jotoba", "Complement data", "complement_data_btn")]
+
+def hide_buttons(editor: Editor):
+    if not has_fields(editor.note.note_type()):
+        show = 'none'
+    else:
+        show = 'inline-block'
+    editor.web.eval(f"document.getElementById('add_audio_btn').style.display = '{show}';")
+    editor.web.eval(f"document.getElementById('clear_contents_btn').style.display = '{show}';")
+    editor.web.eval(f"document.getElementById('update_fields_btn').style.display = '{show}';")
+    editor.web.eval(f"document.getElementById('complement_data_btn').style.display = '{show}';")
 
 def init():
     gui_hooks.editor_did_init_buttons.append(add_clear_content)
     gui_hooks.editor_did_init_buttons.append(add_update_field_btn)
     gui_hooks.editor_did_init_buttons.append(add_complement_data_btn)
     gui_hooks.editor_did_init_buttons.append(add_audio_btn)
+    # hide buttons
+    gui_hooks.editor_did_load_note.append(hide_buttons)

@@ -141,16 +141,5 @@ def fill_on_focus_lost(flag: bool, note: Note, fidx: int):
 
     return fill_data(note, expr_text, flag, reading_text)
 
-current_notetype : NoteType = None
-
-def update_current_notetype(note: Note):
-    log("Note type changed")
-    global current_notetype
-    current_notetype = note.note_type()
-
-def current_notetype_has_fields() -> bool:
-    return has_fields(current_notetype)
-
 def init():
     gui_hooks.editor_did_unfocus_field.append(fill_on_focus_lost)
-    gui_hooks.current_note_type_did_change.append(update_current_notetype)
