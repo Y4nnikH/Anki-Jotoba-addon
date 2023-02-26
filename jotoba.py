@@ -137,7 +137,7 @@ def parse_pos(pos):
             if pos.get("Verb").get("Irregular") == "NounOrAuxSuru":
                 return "suru"
         if "Adjective" in pos:
-            if pos.get("Adjective") == "keiyoushi":
+            if pos.get("Adjective") == "Keiyoushi":
                 return "keiyoushi"
             if pos.get("Adjective") == "I":
                 return "keiyoushi"
