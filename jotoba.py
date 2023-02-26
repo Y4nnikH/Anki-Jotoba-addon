@@ -109,17 +109,22 @@ def parse_pos(pos):
             return "expression"
         if pos == "Colloquialism":
             return "colloquialism"
+        if pos == "Conjunction":
+            return "conjunction"
         if pos == "Interjection":
             return "interjection"
         if pos == "Prefix":
             return "prefix"
-        if pos == "Suffix":
-            return "suffix"
         if pos == "Particle":
             return "particle"
+        if pos == "Counter":
+            return "counter"
     else:
-        if "Noun" in pos and pos.get("Noun") == "Normal":
-            return "futsuumeishi"
+        if "Noun" in pos:
+            if pos.get("Noun") == "Normal":
+                return "futsuumeishi"
+            if pos.get("Noun") == "Suffix":
+                return "suffix"
         if "Verb" in pos:
             if pos.get("Verb") == "Ichidan":
                 return "verb ichidan"
