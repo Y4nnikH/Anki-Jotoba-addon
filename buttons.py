@@ -74,7 +74,10 @@ def update_fields(editor: Editor):
         return
     
     if not word:
-        open_select_dialog(editor, top_hits)
+        if top_hits == []:
+            showInfo("Word not found")
+        else:
+            open_select_dialog(editor, top_hits)
         return
 
     fill_data(editor.note, word, False)
@@ -105,7 +108,10 @@ def complement_data(editor: Editor):
         return
     
     if not word:
-        open_select_dialog(editor, top_hits, overwrite=False)
+        if top_hits == []:
+            showInfo("Word not found")
+        else:
+            open_select_dialog(editor, top_hits, overwrite=False)
         return
 
     fill_data(editor.note, word, False, overwrite=False)
