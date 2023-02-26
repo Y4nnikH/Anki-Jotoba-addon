@@ -50,13 +50,7 @@ ALL_FIELDS = {EXPRESSION_FIELD_NAME: EXPRESSION_FIELD_POS,
               EXAMPLE_FIELD_PREFIX + "3 Audio": Example_Field_Offset + 5,}
 
 
-def fill_data(note: Note, expr: str, flag: bool, reading: str = "", overwrite: bool = True):
-
-    try:
-        word = request_word(expr, reading)
-    except Exception as e:  # error while fetching word
-        log(e)
-        return flag
+def fill_data(note: Note, word: Word, flag: bool, overwrite: bool = True):
 
     if word is None:  # word not found or ambiguity (no kana reading) -> user will call again after providing reading
         return flag
@@ -77,7 +71,7 @@ def fill_data(note: Note, expr: str, flag: bool, reading: str = "", overwrite: b
         note[POS_FIELD_NAME] = "; ".join(word.part_of_speech)
 
     try:
-        sentences = request_sentence(expr)
+        sentences = request_sentence(word.expression)
         for i, sentence in enumerate(sentences):
             if i > 2:
                 break
@@ -131,15 +125,25 @@ def fill_on_focus_lost(flag: bool, note: Note, fidx: int):
         log("Not all data fields are empty")
         return flag
 
-    if fidx == EXPRESSION_FIELD_POS:
-        return fill_data(note, expr_text, flag)
-
     reading_text = note[READING_FIELD_NAME]
 
-    if reading_text == "":
+    if fidx == EXPRESSION_FIELD_POS and reading_text != "": # expression field was focused and reading field is not empty
         return flag
+    if fidx == READING_FIELD_POS and reading_text == "":    # reading field was focused and reading field is empty
+        return flag
+    
+    try:
+        word, top_hits = request_word(expr_text, reading_text)
+    except Exception as e:  # error while fetching word
+        log("Error while fetching word")
+        log(e)
+        return
+    
+    if not word:
+        log("Word not found")
+        return
 
-    return fill_data(note, expr_text, flag, reading_text)
+    return fill_data(note, word, flag)
 
 def init():
     gui_hooks.editor_did_unfocus_field.append(fill_on_focus_lost)

@@ -43,7 +43,7 @@ def request_sentence(text):
     return json.loads(request(SENTENCE_API_URL, text).text)["sentences"]
 
 
-def request_word(text, kana=""):
+def request_word(text, kana="", must_match=True):
     log("Looking up '" + text + "' ...")
     return find_word(json.loads(request(WORDS_API_URL, text).text), text, kana)
 
@@ -54,7 +54,7 @@ def request(URL, text):
     return requests.post(URL, data=data.encode('utf-8'), headers=headers)
 
 
-def find_word(res, expr:str, kana="") -> Optional[Word]:
+def find_word(res, expr:str, kana="") -> tuple[Optional[Word], List[Word]]:
     words = res["words"]
     potential_words = []
     kana_words = []
@@ -63,8 +63,6 @@ def find_word(res, expr:str, kana="") -> Optional[Word]:
 
         if "kanji" in reading:
             if reading["kanji"] == expr and (reading["kana"] == kana or kana == ""):
-                potential_words.append(word)
-            elif len(potential_words) == 0 and reading["kanji"] == expr[:len(reading["kanji"])] and (reading["kana"] == kana[:len(reading["kana"])] or kana == ""): # truncation allows hit for words like "adjectiveNA" -> remove NA
                 potential_words.append(word)
             elif reading["kana"] == expr or reading["kana"] == kana:    # kana word has kanji writing or kanji writing is different from expr
                 kana_words.append(word)
@@ -79,12 +77,15 @@ def find_word(res, expr:str, kana="") -> Optional[Word]:
         if len(potential_words) > 1:
             log("Multiple hits for '" + expr + "'")
         else:
-            log("No hit for '" + expr + "'")
-        return None
+            log("No exact hit for '" + expr + "'")
+        top_hits = []
+        for word in words:
+            top_hits.append(Word(word))
+        return None, top_hits
 
     word = Word(potential_words[0])
 
-    return word
+    return word, None
 
 
 def get_pos(word) -> List[str]:
@@ -106,6 +107,12 @@ def parse_pos(pos):
             return "taking to"
         if pos == "Expr":
             return "expression"
+        if pos == "Colloquialism":
+            return "colloquialism"
+        if pos == "Interjection":
+            return "interjection"
+        if pos == "Prefix":
+            return "prefix"
         if pos == "Suffix":
             return "suffix"
         if pos == "Particle":
@@ -138,6 +145,10 @@ def parse_misc(misc):
         return "kana"
     if misc == "OnomatopoeicOrMimeticWord":
         return "onomatopoeia"
+    if misc == "Abbreviation":
+        return "abbreviation"
+    if misc == "Rare":
+        return "rare"
     return "?"
 
 

@@ -16,7 +16,7 @@ def get_audio(editor: Editor):
     if src_text == "":
         return
     try:
-        word = request_word(src_text)
+        word, top_hits = request_word(src_text)
     except:
         showInfo("Word not found")
         return
@@ -65,11 +65,19 @@ def update_fields(editor: Editor):
     if all_fields[EXPRESSION_FIELD_POS] == "":
         showInfo("Please enter a word in the Expression field")
         return
+    
+    try:
+        word, top_hits = request_word(all_fields[EXPRESSION_FIELD_POS], all_fields[READING_FIELD_POS])
+    except Exception as e:  # error while fetching word
+        showInfo("An error occurred while fetching the word from Jotoba")
+        log(e)
+        return
+    
+    if not word:
+        open_select_dialog(editor, top_hits)
+        return
 
-    if all_fields[READING_FIELD_POS] == "":
-        fill_data(editor.note, all_fields[EXPRESSION_FIELD_POS], False)
-    else:
-        fill_data(editor.note, all_fields[EXPRESSION_FIELD_POS], False, all_fields[READING_FIELD_POS])
+    fill_data(editor.note, word, False)
 
     editor.loadNote()
 
@@ -88,26 +96,96 @@ def complement_data(editor: Editor):
     if all_fields[EXPRESSION_FIELD_POS] == "":
         showInfo("Please enter a word in the Expression field")
         return
+    
+    try:
+        word, top_hits = request_word(all_fields[EXPRESSION_FIELD_POS], all_fields[READING_FIELD_POS])
+    except Exception as e:  # error while fetching word
+        showInfo("An error occurred while fetching the word from Jotoba")
+        log(e)
+        return
+    
+    if not word:
+        open_select_dialog(editor, top_hits, overwrite=False)
+        return
 
-    if all_fields[READING_FIELD_POS] == "":
-        fill_data(editor.note, all_fields[EXPRESSION_FIELD_POS], True, overwrite=False)
-    else:
-        fill_data(editor.note, all_fields[EXPRESSION_FIELD_POS], True, all_fields[READING_FIELD_POS], overwrite=False)
+    fill_data(editor.note, word, False, overwrite=False)
 
     editor.loadNote()
 
 def add_complement_data_btn(buttons: List[str], editor: Editor):
     buttons += [editor.addButton("", "complement_data", complement_data, "Only fills empty fields with data from Jotoba", "Complement data", "complement_data_btn")]
 
+
+
+
+def open_select_dialog(editor: Editor, top_hits: List[Word], overwrite: bool = True):
+
+    dialog = QDialog(editor.parentWindow)
+    dialog.setWindowTitle("Select word")
+    dialog.setWindowModality(Qt.WindowModality.WindowModal)
+    dialog.setMinimumWidth(400)
+    dialog.setMinimumHeight(250)
+    dialog.height = 250
+    layout = QVBoxLayout()
+    dialog.setLayout(layout)
+
+    text = QLabel("No exact match found. Please select a word from the list.")
+    layout.addWidget(text)
+
+    list_widget = QListWidget()
+    for hit in top_hits:
+        list_widget.addItem(hit.expression)
+    list_widget.currentRowChanged.connect(lambda: show_word_info(list_widget, expression, meaning, top_hits))
+    layout.addWidget(list_widget)
+
+    # Expression, reading, meaning of currently selected word
+    selected_word = top_hits[list_widget.currentRow()]
+    expression = QLabel(f"Expression: {selected_word.expression} ({selected_word.reading})")
+    meaning = QLabel(f"Meaning: {'; '.join(selected_word.glosses)}")
+    layout.addWidget(expression)
+    layout.addWidget(meaning)
+    
+
+    accept_btn = QPushButton("Select")
+    accept_btn.clicked.connect(lambda: select_word(list_widget, editor, dialog, top_hits, overwrite))
+
+    cancel_btn = QPushButton("Cancel")
+    cancel_btn.clicked.connect(dialog.reject)
+
+    btn_layout = QHBoxLayout()
+    btn_layout.addWidget(accept_btn)
+    btn_layout.addWidget(cancel_btn)
+
+    layout.addLayout(btn_layout)
+
+    dialog.exec()
+
+def show_word_info(list_widget: QListWidget, expression: QLabel, meaning: QLabel, top_hits: List[Word]):
+    selected_word = top_hits[list_widget.currentRow()]
+    expression.setText(f"Expression: {selected_word.expression} ({selected_word.reading})")
+    meaning.setText(f"Meaning: {', '.join(selected_word.glosses)}")
+
+def select_word(list_widget: QListWidget, editor: Editor, dialog: QDialog, top_hits: List[Word], overwrite: bool = True):
+    word = top_hits[list_widget.currentRow()]
+    fill_data(editor.note, word, False, overwrite)
+    editor.loadNote()
+    dialog.accept()
+
+
+
 def hide_buttons(editor: Editor):
     if not has_fields(editor.note.note_type()):
         show = 'none'
     else:
         show = 'inline-block'
-    editor.web.eval(f"document.getElementById('add_audio_btn').style.display = '{show}';")
-    editor.web.eval(f"document.getElementById('clear_contents_btn').style.display = '{show}';")
-    editor.web.eval(f"document.getElementById('update_fields_btn').style.display = '{show}';")
-    editor.web.eval(f"document.getElementById('complement_data_btn').style.display = '{show}';")
+
+    try:
+        editor.web.eval(f"document.getElementById('add_audio_btn').style.display = '{show}';")
+        editor.web.eval(f"document.getElementById('clear_contents_btn').style.display = '{show}';")
+        editor.web.eval(f"document.getElementById('update_fields_btn').style.display = '{show}';")
+        editor.web.eval(f"document.getElementById('complement_data_btn').style.display = '{show}';")
+    except Exception as e:
+        log(e)
 
 def init():
     gui_hooks.editor_did_init_buttons.append(add_clear_content)

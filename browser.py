@@ -91,7 +91,7 @@ def bulk_add(nids: Sequence[NoteId], pitch=False, pos=False, sentences=False):
 
         try:
             kana = note[READING_FIELD_NAME]
-            word = request_word(note[EXPRESSION_FIELD_NAME], kana)
+            word, top_hits = request_word(note[EXPRESSION_FIELD_NAME], kana)
         except:
             log("Could not fetch '" + note[EXPRESSION_FIELD_NAME] + "'")
             continue
@@ -142,7 +142,7 @@ def bulk_overwrite_pos(nids: Sequence[NoteId]):
         kana = sanitize(note[READING_FIELD_NAME])
 
         try:
-           word = request_word(expr, kana)
+           word, top_hits = request_word(expr, kana)
         except:
            log("Could not fetch '" + str(expr) + "'")
            continue
