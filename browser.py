@@ -147,12 +147,15 @@ def bulk_overwrite_pos(nids: Sequence[NoteId]):
            log("Could not fetch '" + str(expr) + "'")
            continue
 
-        if not word:
-            note[POS_FIELD_NAME] = ""
-            note.add_tag("no_pos")
-        else:
+        if word:
             note[POS_FIELD_NAME] = "; ".join(word.part_of_speech)
             note.remove_tag("no_pos")
+        elif top_hits != [] and top_hits[0].expression == expr[:-1]:
+            note[POS_FIELD_NAME] = "; ".join(top_hits[0].part_of_speech)
+            note.remove_tag("no_pos")
+        else:
+            note[POS_FIELD_NAME] = ""
+            note.add_tag("no_pos")
 
         note.flush()
     mw.progress.finish()
