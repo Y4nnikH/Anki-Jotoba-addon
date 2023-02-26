@@ -115,6 +115,8 @@ def parse_pos(pos):
             return "interjection"
         if pos == "Prefix":
             return "prefix"
+        if pos == "Suffix":
+            return "suffix"
         if pos == "Particle":
             return "particle"
         if pos == "Counter":
@@ -156,6 +158,12 @@ def parse_misc(misc):
         return "abbreviation"
     if misc == "Rare":
         return "rare"
+    if misc == "InternetSlang":
+        return "internet slang"
+    if misc == "Derogatory":
+        return "derogatory"
+    if misc == "HonorificLanguage":
+        return "honorific"
     return "?"
 
 
