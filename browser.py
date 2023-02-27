@@ -34,7 +34,7 @@ def setup_browser_menu(browser: Browser):
     browser.form.menuEdit.addAction(a)
 
     """ Overwrite POS menu """
-    a = QAction("Bulk-overwrite POS", browser)
+    a = QAction("Bulk-update POS", browser)
     a.triggered.connect(lambda: on_regenerate(browser, overwrite_pos=True))
     browser.form.menuEdit.addAction(a)
 
@@ -150,11 +150,17 @@ def bulk_overwrite_pos(nids: Sequence[NoteId]):
         if word:
             note[POS_FIELD_NAME] = "; ".join(word.part_of_speech)
             note.remove_tag("no_pos")
+            note.remove_tag("check_pos")
         elif top_hits != [] and top_hits[0].expression == expr[:-1]:
             note[POS_FIELD_NAME] = "; ".join(top_hits[0].part_of_speech)
             note.remove_tag("no_pos")
+            note.remove_tag("check_pos")
+        elif note[POS_FIELD_NAME] != "": # Keep old POS if no new one found
+            note.remove_tag("no_pos")
+            note.add_tag("check_pos")
         else:
             note[POS_FIELD_NAME] = ""
+            note.remove_tag("check_pos")
             note.add_tag("no_pos")
 
         note.flush()

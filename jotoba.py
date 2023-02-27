@@ -93,13 +93,13 @@ def get_pos(word) -> List[str]:
     if word is not None and "senses" in word:
         for sense in word["senses"]:
             for key in sense["pos"]:
-                pos.append(parse_pos(key))
+                pos.append(parse_pos(word, key))
             if "misc" in sense:
                 pos.append(parse_misc(sense["misc"]))
         pos = list(dict.fromkeys(pos)) # remove duplicates
     return pos
 
-def parse_pos(pos):
+def parse_pos(word, pos):
     if isinstance(pos, str):
         if pos == "Adverb":
             return "fukushi"
@@ -134,7 +134,9 @@ def parse_pos(pos):
                 return "transitive"
             if pos.get("Verb") == "Intransitive":
                 return "intransitive"
-            if pos.get("Verb").get("Irregular") == "NounOrAuxSuru":
+            if word.get("reading").get("kana") in ["する", "くる"]:
+                return "verb irregular"
+            if isinstance(pos.get("Verb"), dict) and pos.get("Verb").get("Irregular") == "NounOrAuxSuru":
                 return "suru"
         if "Adjective" in pos:
             if pos.get("Adjective") == "Keiyoushi":
