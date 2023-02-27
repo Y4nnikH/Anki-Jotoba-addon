@@ -107,8 +107,6 @@ def parse_pos(pos):
             return "taking to"
         if pos == "Expr":
             return "expression"
-        if pos == "Colloquialism":
-            return "colloquialism"
         if pos == "Conjunction":
             return "conjunction"
         if pos == "Interjection":
@@ -164,6 +162,8 @@ def parse_misc(misc):
         return "derogatory"
     if misc == "HonorificLanguage":
         return "honorific"
+    if misc == "Colloquialism":
+        return "colloquialism"
     return "?"
 
 
