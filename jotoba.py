@@ -39,19 +39,19 @@ class Word:
             self.audio_url = JOTOBA_URL + word["audio"]
 
     def __repr__(self):
-        return f"{expression} ({reading})"
+        return f"{self.expression} ({self.reading})"
 
 
-def request_sentence(text):
+def request_sentence(text) -> List[str]:
     return json.loads(request(SENTENCE_API_URL, text).text)["sentences"]
 
 
-def request_word(text, kana="", must_match=True):
+def request_word(text, kana="", must_match=True) -> tuple[Optional[Word], List[Word]]:
     log("Looking up '" + text + "' ...")
     return find_word(json.loads(request(WORDS_API_URL, text).text), text, kana)
 
 
-def request(URL, text):
+def request(URL, text) -> requests.Response:
     data = '{"query":"' + text + '","language":"' + LANGUAGE + '","no_english":true}'
     headers = {"Content-Type": "application/json; charset=utf-8", "Accept": "application/json"}
     return requests.post(URL, data=data.encode('utf-8'), headers=headers)
@@ -102,7 +102,7 @@ def get_pos(word) -> List[str]:
         pos = list(dict.fromkeys(pos)) # remove duplicates
     return pos
 
-def parse_pos(word, pos):
+def parse_pos(word, pos) -> str:
     if isinstance(pos, str):
         if pos == "Adverb":
             return "fukushi"
@@ -152,7 +152,7 @@ def parse_pos(word, pos):
                 return "taking no"
     return "?"
 
-def parse_misc(misc):
+def parse_misc(misc) -> str:
     if misc == "UsuallyWrittenInKana":
         return "kana"
     if misc == "OnomatopoeicOrMimeticWord":
@@ -172,11 +172,11 @@ def parse_misc(misc):
     return "?"
 
 
-def get_katakana(word):
+def get_katakana(word) -> str:
     return word["reading"]["kana"]
 
 
-def gloss_count(word):
+def gloss_count(word) -> int:
     senses = word["senses"]
     count = 0
     for sense in senses:
@@ -185,7 +185,7 @@ def gloss_count(word):
     return count
 
 
-def get_glosses(word):
+def get_glosses(word) -> List[str]:
     senses = word["senses"]
     glosses = []
     for sense in senses:
