@@ -38,6 +38,9 @@ class Word:
         if "audio" in word:
             self.audio_url = JOTOBA_URL + word["audio"]
 
+    def __repr__(self):
+        return f"{expression} ({reading})"
+
 
 def request_sentence(text):
     return json.loads(request(SENTENCE_API_URL, text).text)["sentences"]
