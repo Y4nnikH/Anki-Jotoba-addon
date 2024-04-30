@@ -25,10 +25,6 @@ def setup_browser_menu(browser: Browser):
     a.triggered.connect(lambda: bulk_update_selected_notes(browser))
     browser.form.menuEdit.addSeparator()
     browser.form.menuEdit.addAction(a)
-    """ sanity check """
-    a = QAction("Sanity Check", browser)
-    a.triggered.connect(lambda: my_ui_action(browser.selected_notes()))
-    browser.form.menuEdit.addAction(a)
 
 def sanitize(word: str) -> str:
     if word.find("（") != -1:
@@ -126,7 +122,6 @@ def bulk_options_dialog(browser: Browser) -> dict[str, bool]:
     else:
         return None
     
-# returns col and updated notes
 def fetch_and_update_notes(browser: Browser, col: Collection, nids: Sequence[NoteId], options: dict[str, bool]) -> List[Note]:
     expression = options["expression"]
     reading = options["reading"]
@@ -145,13 +140,15 @@ def fetch_and_update_notes(browser: Browser, col: Collection, nids: Sequence[Not
     for i, nid in enumerate(nids):
 
         log(f"Processing note {i + 1} of {len(nids)}")
-        aqt.mw.taskman.run_on_main(     # is fucked
+        aqt.mw.taskman.run_on_main(
             lambda: aqt.mw.progress.update(
-                label=f"Processing note {i + 1} of {len(nids)}",
+                label=f"Processing notes... ({i}/{len(nids)})",
                 value=i,
                 max=len(nids),
             )
         )
+
+        time.sleep(.1) # dont ask
 
         note = col.get_note(nid)
 
@@ -169,13 +166,14 @@ def fetch_and_update_notes(browser: Browser, col: Collection, nids: Sequence[Not
                         break
 
             if not need_change:
+                log("Skipping: nothing to complete and overwrite option disabled")
                 continue
 
         try:
             kana = note[READING_FIELD_NAME]
-            word, top_hits = request_word(sanitize(note[EXPRESSION_FIELD_NAME]), kana)
+            word, top_hits = request_word(sanitize(note[EXPRESSION_FIELD_NAME]), kana) # somehow interfering with aqt progress
         except Exception as e:
-            log("Could not fetch '" + note[EXPRESSION_FIELD_NAME] + "'")
+            log("Error: Could not fetch '" + note[EXPRESSION_FIELD_NAME] + "'")
             log(e)
             note.add_tag("joto_error")
             updated_notes.append(note)
@@ -185,6 +183,7 @@ def fetch_and_update_notes(browser: Browser, col: Collection, nids: Sequence[Not
             if top_hits == []:
                 note.add_tag("joto_skip")
                 updated_notes.append(note)
+                log("Skipping: no hits found")
                 continue
             elif top_hits[0].expression == note[EXPRESSION_FIELD_NAME]:
                 word = top_hits[0]
@@ -194,10 +193,12 @@ def fetch_and_update_notes(browser: Browser, col: Collection, nids: Sequence[Not
             elif skip_unk:
                 note.add_tag("joto_skip")
                 updated_notes.append(note)
+                log("Skipping: no exact hit found")
                 continue
-            else:
+            else: # todo: implement manual selection
                 note.add_tag("joto_skip")
                 updated_notes.append(note)
+                log("Skipping: no exact hit found")
                 continue
                 #TODO: mw.progress...? is causing the dialog to be unreachable (processing.. window shows up and blocks the dialog)
                 dialog = QDialog(browser.window())
@@ -278,9 +279,12 @@ def bulk_update_selected_notes(browser: Browser):
         success=lambda notes: commit_changes(browser, browser.col, notes)
     )
 
-    fetch_op.with_progress("??????").run_in_background()
+    fetch_op.with_progress("Updating notes...").run_in_background()
 
 def commit_changes(browser: Browser, col: Collection, notes: Sequence[Note]):
+    if not notes:
+        showInfo("No notes to update")
+        return
     commit_op(notes, browser.window()).success(lambda op_changes: commit_success(op_changes)).run_in_background()
 
 def commit_success(op_changes: OpChanges):
@@ -303,45 +307,5 @@ def commit_action(col: Collection, notes: Sequence[Note]) -> OpChanges:
     return op_changes
 
 
-########### SANITY CHECK ############
-def my_background_op(col: Collection, note_ids: list[int]) -> int:
-    # some long-running op, eg
-    start = time.time()
-    total = 30
-    last_progress = start
-    while time.time() - start < total:
-        if time.time() - last_progress >= 0.1:
-            remaining = total - (time.time() - start)
-            aqt.mw.taskman.run_on_main(
-                lambda: aqt.mw.progress.update(
-                    label=f"Remaining: {remaining:.1f}s",
-                    value=total - remaining,
-                    max=total,
-                )
-            )
-            last_progress = time.time()
-    return 123
-
-def on_success(count: int) -> None:
-    showInfo(f"my_background_op() returned {count}")
-
-def my_ui_action(note_ids: list[int]):
-    op = QueryOp(
-        # the active window (main window in this case)
-        parent=mw,
-        # the operation is passed the collection for convenience; you can
-        # ignore it if you wish
-        op=lambda col: my_background_op(col, note_ids),
-        # this function will be called if op completes successfully,
-        # and it is given the return value of the op
-        success=on_success,
-    )
-
-    # if with_progress() is not called, no progress window will be shown.
-    # note: QueryOp.with_progress() was broken until Anki 2.1.50
-    op.with_progress().run_in_background()
-
-########### SANITY CHECK ############
-
 def init():
-    gui_hooks.browser_menus_did_init.append(setup_browser_menu)  # Bulk add
+    gui_hooks.browser_menus_did_init.append(setup_browser_menu)  # Bulk add menu entry
