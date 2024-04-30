@@ -1,7 +1,12 @@
+import time
 from anki.notes import NoteId, Note
 from anki.collection import Collection
 from aqt.browser import Browser
 from typing import List, Sequence, Tuple
+
+import aqt.progress
+
+from .collection_op import JotobaQueryOp
 
 from .editor import EXPRESSION_FIELD_NAME, READING_FIELD_NAME, PITCH_FIELD_NAME, MEANING_FIELD_NAME, POS_FIELD_NAME, EXAMPLE_FIELD_PREFIX, has_fields
 from .jotoba import *
@@ -9,7 +14,7 @@ from .utils import format_furigana, log
 import aqt
 from aqt import progress
 from aqt import mw, gui_hooks
-from aqt.operations import CollectionOp, OpChanges
+from aqt.operations import CollectionOp, OpChanges, QueryOp
 from aqt.utils import showInfo
 from aqt.qt import *
 
@@ -19,6 +24,10 @@ def setup_browser_menu(browser: Browser):
     a = QAction("Joto Bulk-add Data", browser)
     a.triggered.connect(lambda: bulk_update_selected_notes(browser))
     browser.form.menuEdit.addSeparator()
+    browser.form.menuEdit.addAction(a)
+    """ sanity check """
+    a = QAction("Sanity Check", browser)
+    a.triggered.connect(lambda: my_ui_action(browser.selected_notes()))
     browser.form.menuEdit.addAction(a)
 
 def sanitize(word: str) -> str:
@@ -116,10 +125,9 @@ def bulk_options_dialog(browser: Browser) -> dict[str, bool]:
         }
     else:
         return None
-
-def update_selected_notes_action(col: Collection, nids: Sequence[NoteId], options: dict[str, bool]):
-    custom_undo_pos = col.add_custom_undo_entry("Joto bulk-update data")
     
+# returns col and updated notes
+def fetch_and_update_notes(browser: Browser, col: Collection, nids: Sequence[NoteId], options: dict[str, bool]) -> List[Note]:
     expression = options["expression"]
     reading = options["reading"]
     pitch = options["pitch"]
@@ -130,17 +138,20 @@ def update_selected_notes_action(col: Collection, nids: Sequence[NoteId], option
     skip_unk = options["skip_unk"]
     overwrite = options["overwrite"]
     
+    updated_notes = []
+
     replaced_with = []
     
-    def update_single_note(col: Collection, note: Note, undo_pos: int) -> OpChanges:
-        col.update_note(note)
-        return col.merge_undo_entries(undo_pos)
-
     for i, nid in enumerate(nids):
 
         log(f"Processing note {i + 1} of {len(nids)}")
-        # Progress Bar
-        aqt.mw.taskman.run_on_main(lambda: aqt.mw.progress.update("Processing note {}/{}".format(i + 1, len(nids)), value=i, max=len(nids)))
+        aqt.mw.taskman.run_on_main(     # is fucked
+            lambda: aqt.mw.progress.update(
+                label=f"Processing note {i + 1} of {len(nids)}",
+                value=i,
+                max=len(nids),
+            )
+        )
 
         note = col.get_note(nid)
 
@@ -167,13 +178,13 @@ def update_selected_notes_action(col: Collection, nids: Sequence[NoteId], option
             log("Could not fetch '" + note[EXPRESSION_FIELD_NAME] + "'")
             log(e)
             note.add_tag("joto_error")
-            update_single_note(col, note, custom_undo_pos)
+            updated_notes.append(note)
             continue
 
         if not word:
             if top_hits == []:
                 note.add_tag("joto_skip")
-                update_single_note(col, note, custom_undo_pos)
+                updated_notes.append(note)
                 continue
             elif top_hits[0].expression == note[EXPRESSION_FIELD_NAME]:
                 word = top_hits[0]
@@ -182,11 +193,11 @@ def update_selected_notes_action(col: Collection, nids: Sequence[NoteId], option
                 replaced_with.append([note[EXPRESSION_FIELD_NAME], word.expression])
             elif skip_unk:
                 note.add_tag("joto_skip")
-                update_single_note(col, note, custom_undo_pos)
+                updated_notes.append(note)
                 continue
             else:
                 note.add_tag("joto_skip")
-                update_single_note(col, note, custom_undo_pos)
+                updated_notes.append(note)
                 continue
                 #TODO: mw.progress...? is causing the dialog to be unreachable (processing.. window shows up and blocks the dialog)
                 dialog = QDialog(browser.window())
@@ -209,7 +220,7 @@ def update_selected_notes_action(col: Collection, nids: Sequence[NoteId], option
 
                 if word is None:
                     note.add_tag("joto_skip")
-                    update_single_note(col, note, custom_undo_pos)
+                    updated_notes.append(note)
                     continue
 
         if expression and (note[EXPRESSION_FIELD_NAME] == "" or overwrite):
@@ -251,25 +262,86 @@ def update_selected_notes_action(col: Collection, nids: Sequence[NoteId], option
                 note.add_tag("joto_no_sentences")
                 pass
         
-        update_single_note(col, note, custom_undo_pos)
+        updated_notes.append(note)
     
-    return col.merge_undo_entries(custom_undo_pos)
-    
-
-def update_selected_notes_op(*, nids: Sequence[NoteId], options: dict[str, bool], parent: QWidget) -> CollectionOp[OpChanges]:
-    return CollectionOp(parent, lambda col: update_selected_notes_action(col, nids, options))
-
+    return updated_notes
+                   
 def bulk_update_selected_notes(browser: Browser):
     options = bulk_options_dialog(browser)
+
     if options is None:
         return
     
-    selected_nodes = browser.selectedNotes()
-    
-    # todo: make progress bar work -> use aqt.mw.taskman.run_on_main without running op in background ?
+    fetch_op = QueryOp(
+        parent=browser.window(),
+        op=lambda col: fetch_and_update_notes(browser, col, browser.selected_notes(), options),
+        success=lambda notes: commit_changes(browser, browser.col, notes)
+    )
 
-    update_selected_notes_op(parent=browser.window(), nids=selected_nodes, options=options).run_in_background()
+    fetch_op.with_progress("??????").run_in_background()
 
+def commit_changes(browser: Browser, col: Collection, notes: Sequence[Note]):
+    commit_op(notes, browser.window()).success(lambda op_changes: commit_success(op_changes)).run_in_background()
+
+def commit_success(op_changes: OpChanges):
+    log(f"{op_changes}")
+    showInfo(f"Updated notes")
+
+def commit_op(notes: Sequence[Note], parent: QWidget) -> CollectionOp[OpChanges]:
+    return CollectionOp(
+        parent=parent,
+        op=lambda col: commit_action(col, notes)
+    )
+
+def commit_action(col: Collection, notes: Sequence[Note]) -> OpChanges:
+    custom_undo_pos = col.add_custom_undo_entry("Joto bulk-update data")
+
+    for note in notes:
+        col.update_note(note)
+        op_changes = col.merge_undo_entries(custom_undo_pos)
+
+    return op_changes
+
+
+########### SANITY CHECK ############
+def my_background_op(col: Collection, note_ids: list[int]) -> int:
+    # some long-running op, eg
+    start = time.time()
+    total = 30
+    last_progress = start
+    while time.time() - start < total:
+        if time.time() - last_progress >= 0.1:
+            remaining = total - (time.time() - start)
+            aqt.mw.taskman.run_on_main(
+                lambda: aqt.mw.progress.update(
+                    label=f"Remaining: {remaining:.1f}s",
+                    value=total - remaining,
+                    max=total,
+                )
+            )
+            last_progress = time.time()
+    return 123
+
+def on_success(count: int) -> None:
+    showInfo(f"my_background_op() returned {count}")
+
+def my_ui_action(note_ids: list[int]):
+    op = QueryOp(
+        # the active window (main window in this case)
+        parent=mw,
+        # the operation is passed the collection for convenience; you can
+        # ignore it if you wish
+        op=lambda col: my_background_op(col, note_ids),
+        # this function will be called if op completes successfully,
+        # and it is given the return value of the op
+        success=on_success,
+    )
+
+    # if with_progress() is not called, no progress window will be shown.
+    # note: QueryOp.with_progress() was broken until Anki 2.1.50
+    op.with_progress().run_in_background()
+
+########### SANITY CHECK ############
 
 def init():
     gui_hooks.browser_menus_did_init.append(setup_browser_menu)  # Bulk add
