@@ -6,7 +6,7 @@ from typing import List, Sequence, Tuple
 
 import aqt.progress
 
-from .editor import EXPRESSION_FIELD_NAME, READING_FIELD_NAME, PITCH_FIELD_NAME, MEANING_FIELD_NAME, POS_FIELD_NAME, EXAMPLE_FIELD_PREFIX, has_fields
+from .editor import EXPRESSION_FIELD_NAME, READING_FIELD_NAME, PITCH_FIELD_NAME, MEANING_FIELD_NAME, POS_FIELD_NAME, EXAMPLE_FIELD_PREFIX, get_joto_fields
 from .jotoba import *
 from .utils import format_furigana, log
 import aqt
@@ -150,7 +150,7 @@ def fetch_and_update_notes(browser: Browser, col: Collection, nids: Sequence[Not
 
         note = col.get_note(nid)
 
-        if not has_fields(note.note_type()):
+        if not get_joto_fields(note.note_type()):
             log("Skipping: wrong note type")
             continue
 

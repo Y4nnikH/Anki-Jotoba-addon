@@ -1,7 +1,7 @@
 from aqt.editor import Editor
 from typing import List
 
-from .editor import EXPRESSION_FIELD_POS, AUDIO_FIELD_POS, READING_FIELD_POS, fill_data, has_fields
+from .editor import AUDIO_FIELD_NAME, EXPRESSION_FIELD_NAME, READING_FIELD_NAME, fill_data, get_joto_fields
 from .jotoba import *
 from .utils import log
 from aqt.utils import showInfo
@@ -11,6 +11,13 @@ from aqt import gui_hooks
 
 # Audio button
 def get_audio(editor: Editor):
+    joto_fields = get_joto_fields(editor.note.note_type())
+    if joto_fields is None:
+        showInfo("Note does not have the required fields")
+        return
+    
+    EXPRESSION_FIELD_POS = joto_fields[EXPRESSION_FIELD_NAME]
+
     all_fields = editor.note.fields
     src_text = all_fields[EXPRESSION_FIELD_POS]
     if src_text == "":
@@ -28,6 +35,13 @@ def get_audio(editor: Editor):
 
 
 def set_audio_in_editor(audio: str, editor: Editor):
+    joto_fields = get_joto_fields(editor.note.note_type())
+    if joto_fields is None:
+        showInfo("Note does not have the required fields")
+        return
+
+    AUDIO_FIELD_POS = joto_fields[AUDIO_FIELD_NAME]
+
     audio = editor.urlToFile(audio)
     all_fields = editor.note.fields
     all_fields[AUDIO_FIELD_POS] = f'[sound:{audio}]'
@@ -58,10 +72,14 @@ def add_clear_content(buttons: List[str], editor: Editor):
 def update_fields(editor: Editor):
     all_fields = editor.note.fields
 
-    if not has_fields(editor.note.note_type()):
+    joto_fields = get_joto_fields(editor.note.note_type())
+    if joto_fields is None:
         log("Note does not have the required fields")
         return
     
+    EXPRESSION_FIELD_POS = joto_fields[EXPRESSION_FIELD_NAME]
+    READING_FIELD_POS = joto_fields[READING_FIELD_NAME]
+
     if all_fields[EXPRESSION_FIELD_POS] == "":
         showInfo("Please enter a word in the Expression field")
         return
@@ -92,9 +110,13 @@ def add_update_field_btn(buttons: List[str], editor: Editor):
 def complement_data(editor: Editor):
     all_fields = editor.note.fields
 
-    if not has_fields(editor.note.note_type()):
+    joto_fields = get_joto_fields(editor.note.note_type())
+    if joto_fields is None:
         log("Note does not have the required fields")
         return
+
+    EXPRESSION_FIELD_POS = joto_fields[EXPRESSION_FIELD_NAME]
+    READING_FIELD_POS = joto_fields[READING_FIELD_NAME]
     
     if all_fields[EXPRESSION_FIELD_POS] == "":
         showInfo("Please enter a word in the Expression field")
@@ -180,7 +202,9 @@ def select_word(list_widget: QListWidget, editor: Editor, dialog: QDialog, top_h
 
 
 def hide_buttons(editor: Editor):
-    if not has_fields(editor.note.note_type()):
+    joto_fields = get_joto_fields(editor.note.note_type())
+
+    if joto_fields is None:
         show = 'none'
     else:
         show = 'inline-block'

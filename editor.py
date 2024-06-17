@@ -8,46 +8,19 @@ from .utils import format_furigana, log
 
 # Field constants
 EXPRESSION_FIELD_NAME = "Expression"
-EXPRESSION_FIELD_POS = 0
-
 READING_FIELD_NAME = "Reading"
-READING_FIELD_POS = 1
-
 PITCH_FIELD_NAME = "Pitch"
-PITCH_FIELD_POS = 2
-
 MEANING_FIELD_NAME = "Meaning"
-MEANING_FIELD_POS = 3
-
 POS_FIELD_NAME = "POS"
-POS_FIELD_POS = 4
-
 IMAGE_FIELD_NAME = "Image"
-Image_FIELD_POS = 5
-
 AUDIO_FIELD_NAME = "Audio"
-AUDIO_FIELD_POS = 6
-
 NOTES_FIELD_NAME = "Notes"
-NOTES_FIELD_POS = 7
-
 EXAMPLE_FIELD_PREFIX = "Example "
-Example_Field_Offset = 8
 
-ALL_FIELDS = {EXPRESSION_FIELD_NAME: EXPRESSION_FIELD_POS,
-              READING_FIELD_NAME: READING_FIELD_POS,
-              PITCH_FIELD_NAME: PITCH_FIELD_POS,
-              MEANING_FIELD_NAME: MEANING_FIELD_POS,
-              POS_FIELD_NAME: POS_FIELD_POS,
-              IMAGE_FIELD_NAME: Image_FIELD_POS,
-              AUDIO_FIELD_NAME: AUDIO_FIELD_POS,
-              NOTES_FIELD_NAME: NOTES_FIELD_POS,
-              EXAMPLE_FIELD_PREFIX + "1": Example_Field_Offset,
-              EXAMPLE_FIELD_PREFIX + "1 Audio": Example_Field_Offset + 1,
-              EXAMPLE_FIELD_PREFIX + "2": Example_Field_Offset + 2,
-              EXAMPLE_FIELD_PREFIX + "2 Audio": Example_Field_Offset + 3,
-              EXAMPLE_FIELD_PREFIX + "3": Example_Field_Offset + 4,
-              EXAMPLE_FIELD_PREFIX + "3 Audio": Example_Field_Offset + 5,}
+ALL_FIELDS = [EXPRESSION_FIELD_NAME, READING_FIELD_NAME, PITCH_FIELD_NAME, MEANING_FIELD_NAME, POS_FIELD_NAME,
+             IMAGE_FIELD_NAME, AUDIO_FIELD_NAME, NOTES_FIELD_NAME, EXAMPLE_FIELD_PREFIX + "1",
+             EXAMPLE_FIELD_PREFIX + "1 Audio", EXAMPLE_FIELD_PREFIX + "2", EXAMPLE_FIELD_PREFIX + "2 Audio",
+             EXAMPLE_FIELD_PREFIX + "3", EXAMPLE_FIELD_PREFIX + "3 Audio"]
 
 
 def fill_data(note: Note, word: Word, flag: bool, overwrite: bool = True):
@@ -86,33 +59,34 @@ def fill_data(note: Note, word: Word, flag: bool, overwrite: bool = True):
     return True
 
 
-# Check whether all fields are available in given notetype
-def has_fields(notetype: NoteType) -> bool:
-    if notetype is None:
-        return False
-    
+# Check whether all fields are available in given notetype and return their positions
+def get_joto_fields(notetype: NoteType) -> Optional[dict]:
+    fields = {}
     for f in ALL_FIELDS:
-        exists = False
         for pos, name in enumerate(mw.col.models.field_names(notetype)):
-            if name == f and pos == ALL_FIELDS[f]:
-                exists = True
-        if not exists:
-            return False
-    return True
+            if name == f:
+                fields[f] = pos
+        if f not in fields:
+            return None
+    return fields
 
 def fields_empty(note: Note) -> bool:
-    for f in set(ALL_FIELDS.keys()) - {EXPRESSION_FIELD_NAME, READING_FIELD_NAME}:
+    for f in set(ALL_FIELDS) - {EXPRESSION_FIELD_NAME, READING_FIELD_NAME}:
         if note[f] != "":
             return False
     return True
 
 
 def fill_on_focus_lost(flag: bool, note: Note, fidx: int):
-    if fidx not in [EXPRESSION_FIELD_POS, READING_FIELD_POS]:
-        return flag
-
-    if not has_fields(note.note_type()):
+    joto_fields = get_joto_fields(note.note_type())
+    if joto_fields is None:
         log("Note does not have the required fields")
+        return flag
+    
+    EXPRESSION_FIELD_POS = joto_fields[EXPRESSION_FIELD_NAME]
+    READING_FIELD_POS = joto_fields[READING_FIELD_NAME]
+
+    if fidx not in [EXPRESSION_FIELD_POS, READING_FIELD_POS]:
         return flag
 
     expr_text = note[EXPRESSION_FIELD_NAME]
